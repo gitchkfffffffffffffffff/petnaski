@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Пятнашки</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(12px, 3vw, 32px);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #e9edf7;
+    background:
+      radial-gradient(900px 600px at 50% -15%, #232f52 0%, transparent 70%),
+      radial-gradient(700px 500px at 105% 110%, #2a1f45 0%, transparent 70%),
+      #0a0c12;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(14px, 2.4vw, 22px);
+  }
+
+  /* ---------- Заголовок ---------- */
+  header { text-align: center; }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: clamp(22px, 5.5vw, 30px);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    background: linear-gradient(180deg, #ffffff, #9fb0d8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .sub {
+    margin: 0;
+    font-size: clamp(12px, 3vw, 14px);
+    color: #7f8bab;
+  }
+
+  /* ---------- Статистика ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+  }
+
+  .stat {
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    padding: 10px 8px;
+    text-align: center;
+    backdrop-filter: blur(6px);
+  }
+
+  .stat .label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #77839f;
+    margin-bottom: 4px;
+  }
+
+  .stat .value {
+    display: block;
+    font-size: clamp(16px, 4vw, 20px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #dce6ff;
+  }
+
+  /* ---------- Игровое поле ---------- */
+  .board-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .board {
+    --board: min(92vw, 440px, 58vh);
+    --n: 4;
+    position: relative;
+    width: var(--board);
+    height: var(--board);
+    border-radius: clamp(16px, 4vw, 22px);
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow:
+      0 40px 70px -30px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    font-size: calc(var(--board) / var(--n) * 0.38);
+    touch-action: manipulation;
+    overflow: hidden;
+    transition: transform 0.25s ease;
+  }
+
+  .board.pulse { animation: pulse 0.4s ease; }
+
+  @keyframes pulse {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(0.975); }
+    100% { transform: scale(1); }
+  }
+
+  .slot {
+    position: absolute;
+    top: 0; left: 0;
+    width: calc(100% / var(--n));
+    height: calc(100% / var(--n));
+    padding: max(2px, calc(var(--board) / var(--n) * 0.05));
+    pointer-events: none;
+  }
+
+  .slot::after {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: clamp(8px, 2.2vw, 13px);
+    background: rgba(255, 255, 255, 0.028);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.028);
+  }
+
+  /* ---------- Плитки ---------- */
+  .tile {
+    position: absolute;
+    top: 0; left: 0;
+    width: calc(100% / var(--n));
+    height: calc(100% / var(--n));
+    padding: max(2px, calc(var(--board) / var(--n) * 0.05));
+    transition: transform 0.16s cubic-bezier(0.34, 0.9, 0.4, 1);
+    will-change: transform;
+    z-index: 2;
+  }
+
+  .tile-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    border-radius: clamp(8px, 2.2vw, 13px);
+    background: linear-gradient(160deg, #3d4a78 0%, #232b45 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 -2px 6px rgba(0, 0, 0, 0.35),
+      0 5px 12px -6px rgba(0, 0, 0, 0.85);
+    font-weight: 650;
+    color: #dbe4ff;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, color 0.15s ease;
+  }
+
+  .tile.movable .tile-inner {
+    background: linear-gradient(160deg, #47568c 0%, #2a3457 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 0 0 1px rgba(120, 170, 255, 0.25),
+      0 5px 14px -6px rgba(60, 110, 255, 0.5);
+    color: #ffffff;
+  }
+
+  @media (hover: hover) {
+    .tile.movable:hover .tile-inner {
+      background: linear-gradient(160deg, #5366a5 0%, #313d66 100%);
+      transform: translateY(-1px);
+    }
+  }
+
+  .tile.movable:active .tile-inner { transform: scale(0.95); }
+
+  /* ---------- Плитка на своём месте ---------- */
+  .tile.correct .tile-inner {
+    color: #7df0b5;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 0 0 1px rgba(74, 222, 128, 0.32),
+      0 5px 12px -6px rgba(0, 0, 0, 0.85);
+  }
+
+  .tile.correct .tile-inner::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.9);
+    animation: dotIn 0.25s ease;
+  }
+
+  @keyframes dotIn {
+    0%   { transform: scale(0); opacity: 0; }
+    60%  { transform: scale(1.25); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Плитка и на месте, и её можно двигать — сохраняем зелёный оттенок числа */
+  .tile.movable.correct .tile-inner {
+    color: #9dfbc9;
+  }
+
+  /* ---------- Оверлей победы ---------- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: clamp(16px, 4vw, 22px);
+    background: rgba(8, 10, 18, 0.72);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+    z-index: 10;
+  }
+
+  .overlay.show { opacity: 1; visibility: visible; }
+
+  .overlay-card {
+    text-align: center;
+    padding: 22px 26px;
+    transform: translateY(10px) scale(0.96);
+    transition: transform 0.35s cubic-bezier(0.2, 1.2, 0.4, 1);
+  }
+
+  .overlay.show .overlay-card { transform: translateY(0) scale(1); }
+
+  .overlay-card .emoji {
+    font-size: 40px;
+    line-height: 1;
+    margin-bottom: 8px;
+    animation: pop 0.6s ease;
+  }
+
+  @keyframes pop {
+    0%   { transform: scale(0.3) rotate(-20deg); opacity: 0; }
+    60%  { transform: scale(1.15) rotate(6deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); }
+  }
+
+  .overlay-card h2 {
+    margin: 0 0 6px;
+    font-size: clamp(20px, 5vw, 26px);
+    background: linear-gradient(180deg, #fff, #a9c0ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .overlay-card p {
+    margin: 0 0 18px;
+    font-size: 14px;
+    color: #9aa7c6;
+    line-height: 1.5;
+  }
+
+  .record {
+    display: inline-block;
+    margin-bottom: 14px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #ffe08a;
+    background: rgba(255, 205, 80, 0.12);
+    border: 1px solid rgba(255, 205, 80, 0.3);
+  }
+
+  /* ---------- Кнопки ---------- */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #dbe4ff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 11px 20px;
+    border-radius: 13px;
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.1s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  button:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: linear-gradient(160deg, #4f6ae0 0%, #3b52bd 100%);
+    border-color: rgba(120, 150, 255, 0.45);
+    box-shadow: 0 10px 24px -12px rgba(80, 120, 255, 0.9);
+    color: #fff;
+  }
+
+  .btn-primary:hover {
+    background: linear-gradient(160deg, #5d78ec 0%, #455ecb 100%);
+    border-color: rgba(140, 170, 255, 0.6);
+  }
+
+  .seg {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .seg button {
+    padding: 8px 13px;
+    font-size: 13px;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    color: #8d99b8;
+  }
+
+  .seg button:hover { background: rgba(255, 255, 255, 0.06); color: #cfd9f5; }
+
+  .seg button.active {
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .hint {
+    font-size: 12px;
+    color: #66718d;
+    text-align: center;
+    margin: 0;
+  }
+
+  .legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px rgba(74, 222, 128, 0.8);
+  }
+
+  @media (max-width: 380px) {
+    .stat .label { font-size: 10px; }
+    button { padding: 10px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>Пятнашки</h1>
+    <p class="sub">Расставьте числа по порядку</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><span class="label">Ходы</span><span class="value" id="moves">0</span></div>
+    <div class="stat"><span class="label">Время</span><span class="value" id="time">0:00</span></div>
+    <div class="stat"><span class="label">Рекорд</span><span class="value" id="best">—</span></div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="overlay" id="overlay">
+      <div class="overlay-card">
+        <div class="emoji">🎉</div>
+        <h2>Победа!</h2>
+        <div id="recordBadge"></div>
+        <p id="winStats"></p>
+        <button class="btn-primary" id="againBtn">Играть снова</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-primary" id="shuffleBtn">Перемешать</button>
+    <div class="seg" id="sizes">
+      <button data-n="3">3×3</button>
+      <button data-n="4" class="active">4×4</button>
+      <button data-n="5">5×5</button>
+    </div>
+  </div>
+
+  <p class="hint">
+    Клик по плитке или стрелки на клавиатуре ·
+    <span class="legend"><span class="dot"></span>на своём месте</span>
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Элементы ---------- */
+  const boardEl    = document.getElementById('board');
+  const movesEl    = document.getElementById('moves');
+  const timeEl     = document.getElementById('time');
+  const bestEl     = document.getElementById('best');
+  const overlay    = document.getElementById('overlay');
+  const winStats   = document.getElementById('winStats');
+  const recordBadge= document.getElementById('recordBadge');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const againBtn   = document.getElementById('againBtn');
+  const sizesEl    = document.getElementById('sizes');
+
+  /* ---------- Состояние ---------- */
+  let N = 4;              // размер поля
+  let board = [];         // board[позиция] = число (0 — пустая клетка)
+  let emptyPos = 15;      // позиция пустой клетки
+  let tiles = new Map();  // число -> DOM-элемент
+  let moves = 0;
+  let locked = false;
+  let timerId = null;
+  let startTime = 0;
+
+  const idx = (r, c) => r * N + c;
+
+  /* ---------- localStorage (безопасно) ---------- */
+  function getBest() {
+    try { return localStorage.getItem('pyatnashki-best-' + N); }
+    catch (e) { return null; }
+  }
+  function setBest(v) {
+    try { localStorage.setItem('pyatnashki-best-' + N, String(v)); } catch (e) {}
+  }
+
+  /* ---------- Вспомогательное ---------- */
+  function plural(n, forms) {
+    const a = Math.abs(n) % 100;
+    const b = a % 10;
+    if (a > 10 && a < 20) return forms[2];
+    if (b > 1 && b < 5) return forms[1];
+    if (b === 1) return forms[0];
+    return forms[2];
+  }
+
+  function fmtTime(ms) {
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function solvedArray() {
+    const a = [];
+    for (let i = 1; i < N * N; i++) a.push(i);
+    a.push(0);
+    return a;
+  }
+
+  function isSolved() {
+    for (let i = 0; i < N * N - 1; i++) {
+      if (board[i] !== i + 1) return false;
+    }
+    return board[N * N - 1] === 0;
+  }
+
+  /* ---------- Таймер ---------- */
+  function startTimer() {
+    if (timerId) return;
+    startTime = Date.now();
+    timerId = setInterval(function () {
+      timeEl.textContent = fmtTime(Date.now() - startTime);
+    }, 200);
+  }
+
+  function stopTimer() {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+
+  function elapsed() {
+    return timerId ? Date.now() - startTime : 0;
+  }
+
+  /* ---------- Построение поля ---------- */
+  function build() {
+    boardEl.innerHTML = '';
+    boardEl.style.setProperty('--n', N);
+    tiles.clear();
+
+    board = solvedArray();
+    emptyPos = N * N - 1;
+
+    // пустые ячейки-подложки
+    for (let i = 0; i < N * N; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      const r = Math.floor(i / N), c = i % N;
+      slot.style.transform = 'translate(' + (c * 100) + '%, ' + (r * 100) + '%)';
+      boardEl.appendChild(slot);
+    }
+
+    // плитки
+    for (let v = 1; v < N * N; v++) {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      const inner = document.createElement('div');
+      inner.className = 'tile-inner';
+      inner.textContent = v;
+      el.appendChild(inner);
+      el.addEventListener('click', function () { onTileClick(v); });
+      tiles.set(v, el);
+      boardEl.appendChild(el);
+    }
+
+    render();
+    updateBestDisplay();
+  }
+
+  /* ---------- Отрисовка ---------- */
+  function render() {
+    const er = Math.floor(emptyPos / N);
+    const ec = emptyPos % N;
+
+    for (let i = 0; i < board.length; i++) {
+      const v = board[i];
+      if (v === 0) continue;
+
+      const el = tiles.get(v);
+      const r = Math.floor(i / N);
+      const c = i % N;
+
+      el.style.transform = 'translate(' + (c * 100) + '%, ' + (r * 100) + '%)';
+
+      const near = (Math.abs(r - er) + Math.abs(c - ec)) === 1;
+      el.classList.toggle('movable', near && !locked);
+
+      // Плитка стоит на своём месте, если её номер совпадает с позицией (1-индексация)
+      el.classList.toggle('correct', v === i + 1);
+    }
+  }
+
+  /* ---------- Ходы ---------- */
+  function swapWithEmpty(pos) {
+    board[emptyPos] = board[pos];
+    board[pos] = 0;
+    emptyPos = pos;
+  }
+
+  function tryMoveTo(pos) {
+    if (locked) return;
+    if (pos < 0 || pos >= N * N) return;
+
+    const r = Math.floor(pos / N), c = pos % N;
+    const er = Math.floor(emptyPos / N), ec = emptyPos % N;
+
+    if (Math.abs(r - er) + Math.abs(c - ec) !== 1) return;
+
+    swapWithEmpty(pos);
+    moves++;
+    movesEl.textContent = moves;
+
+    startTimer();
+    render();
+    checkWin();
+  }
+
+  function onTileClick(value) {
+    tryMoveTo(board.indexOf(value));
+  }
+
+  function moveInDirection(dr, dc) {
+    // плитка, которая стоит со стороны (dr, dc) от пустой клетки, сдвигается в неё
+    const er = Math.floor(emptyPos / N);
+    const ec = emptyPos % N;
+    const r = er + dr;
+    const c = ec + dc;
+    if (r < 0 || r >= N || c < 0 || c >= N) return;
+    tryMoveTo(idx(r, c));
+  }
+
+  /* ---------- Победа ---------- */
+  function checkWin() {
+    if (!isSolved()) return;
+
+    locked = true;
+    const timeMs = elapsed();
+    stopTimer();
+    timeEl.textContent = fmtTime(timeMs);
+
+    // снимаем подсветку доступных ходов
+    tiles.forEach(function (el) { el.classList.remove('movable'); });
+
+    // рекорд
+    const prev = getBest();
+    const prevNum = prev === null ? null : parseInt(prev, 10);
+    let isRecord = false;
+
+    if (prevNum === null || moves < prevNum) {
+      setBest(moves);
+      isRecord = true;
+    }
+    updateBestDisplay();
+
+    recordBadge.innerHTML = isRecord ? '<span class="record">★ Новый рекорд!</span>' : '';
+    winStats.textContent =
+      moves + ' ' + plural(moves, ['ход', 'хода', 'ходов']) +
+      ' · ' + fmtTime(timeMs) + ' · поле ' + N + '×' + N;
+
+    overlay.classList.add('show');
+  }
+
+  function updateBestDisplay() {
+    const best = getBest();
+    bestEl.textContent = best === null ? '—' : best;
+  }
+
+  /* ---------- Новая игра / перемешивание ---------- */
+  function resetState() {
+    stopTimer();
+    locked = false;
+    moves = 0;
+    startTime = 0;
+    movesEl.textContent = '0';
+    timeEl.textContent = '0:00';
+    overlay.classList.remove('show');
+    recordBadge.innerHTML = '';
+  }
+
+  function shuffle() {
+    resetState();
+
+    // Случайные ходы из решённого состояния — гарантирует решаемость
+    let prevEmpty = -1;
+    const steps = N * N * 30;
+
+    for (let s = 0; s < steps; s++) {
+      const er = Math.floor(emptyPos / N);
+      const ec = emptyPos % N;
+      const opts = [];
+
+      if (er > 0)     opts.push(idx(er - 1, ec));
+      if (er < N - 1) opts.push(idx(er + 1, ec));
+      if (ec > 0)     opts.push(idx(er, ec - 1));
+      if (ec < N - 1) opts.push(idx(er, ec + 1));
+
+      const avail = opts.filter(function (p) { return p !== prevEmpty; });
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+
+      prevEmpty = emptyPos;
+      swapWithEmpty(pick);
+    }
+
+    // на всякий случай: если вдруг собралось — мешаем заново
+    if (isSolved()) return shuffle();
+
+    render();
+    boardEl.classList.remove('pulse');
+    void boardEl.offsetWidth;
+    boardEl.classList.add('pulse');
+  }
+
+  function newGame(size) {
+    N = size;
+    build();
+    shuffle();
+  }
+
+  /* ---------- События ---------- */
+  shuffleBtn.addEventListener('click', shuffle);
+  againBtn.addEventListener('click', shuffle);
+
+  sizesEl.addEventListener('click', function (e) {
+    const btn = e.target.closest('button[data-n]');
+    if (!btn) return;
+    const n = parseInt(btn.dataset.n, 10);
+    if (n === N) return;
+
+    Array.prototype.forEach.call(sizesEl.children, function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+
+    newGame(n);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    const map = {
+      ArrowUp:    [1, 0],
+      ArrowDown:  [-1, 0],
+      ArrowLeft:  [0, 1],
+      ArrowRight: [0, -1]
+    };
+    const m = map[e.key];
+    if (!m) return;
+    e.preventDefault();
+    moveInDirection(m[0], m[1]);
+  });
+
+  /* ---------- Старт ---------- */
+  newGame(4);
+})();
+</script>
+</body>
+</html>
